@@ -4,77 +4,79 @@ const jwt = require("jsonwebtoken");
 const handleRefreshToken = async (req, res) => {
   const cookies = req.cookies;
   if (!cookies?.jwt) return res.sendStatus(401);
+
   const refreshToken = cookies.jwt;
   res.clearCookie("jwt", { httpOnly: true, sameSite: "None", secure: true });
 
-  const foundUser = await User.findOne({ refreshToken }).exec();
+  try {
+    const findUser = await User.findOne({
+      refreshToken: { $in: [refreshToken] },
+    }).exec();
 
-  // Detected refresh token reuse!
-  if (!foundUser) {
-    jwt.verify(
-      refreshToken,
-      process.env.REFRESH_TOKEN_SECRET,
-      async (err, decoded) => {
-        if (err) return res.sendStatus(403);
+    if (!findUser) {
+      try {
+        const decoded = jwt.verify(
+          refreshToken,
+          process.env.REFRESH_TOKEN_SECRET
+        );
         console.log("attempted refresh token reuse!");
-        const hackedUser = await User.findOne({
-          username: decoded.username,
-        }).exec();
-        hackedUser.refreshToken = [];
-        const result = await hackedUser.save();
-        console.log(result);
-      }
-    );
-    return res.sendStatus(403);
-  }
 
-  const newRefreshTokenArray = foundUser.refreshToken.filter(
-    (rt) => rt !== refreshToken
-  );
+        const hackedUser = await User.findById(decoded.id).exec();
+        if (hackedUser) {
+          hackedUser.refreshToken = [];
+          await hackedUser.save();
+        }
 
-  // evaluate jwt
-  jwt.verify(
-    refreshToken,
-    process.env.REFRESH_TOKEN_SECRET,
-    async (err, decoded) => {
-      if (err) {
-        console.log("expired refresh token");
-        foundUser.refreshToken = [...newRefreshTokenArray];
-        const result = await foundUser.save();
-        console.log(result);
-      }
-      if (err || foundUser.username !== decoded.username)
         return res.sendStatus(403);
-
-      // Refresh token was still valid
-      const accessToken = jwt.sign(
-        {
-          username: decoded.username,
-        },
-        process.env.ACCESS_TOKEN_SECRET,
-        { expiresIn: "10s" }
-      );
-
-      const newRefreshToken = jwt.sign(
-        { username: foundUser.username },
-        process.env.REFRESH_TOKEN_SECRET,
-        { expiresIn: "1d" }
-      );
-      // Saving refreshToken with current user
-      foundUser.refreshToken = [...newRefreshTokenArray, newRefreshToken];
-      const result = await foundUser.save();
-
-      // Creates Secure Cookie with refresh token
-      res.cookie("jwt", newRefreshToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "None",
-        maxAge: 24 * 60 * 60 * 1000,
-      });
-
-      res.json({ roles, accessToken });
+      } catch (err) {
+        return res.sendStatus(403);
+      }
     }
-  );
+
+    const newRefreshTokenArray = findUser.refreshToken.filter(
+      (rt) => rt !== refreshToken
+    );
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+      if (decoded.id !== findUser.id) {
+        return res.sendStatus(403);
+      }
+    } catch (err) {
+      console.log("expired or invalid refresh token");
+      findUser.refreshToken = [...newRefreshTokenArray];
+      await findUser.save();
+      return res.sendStatus(403);
+    }
+
+    const accessToken = jwt.sign(
+      { id: decoded.id, role: decoded.role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "5m" }
+    );
+
+    const newRefreshToken = jwt.sign(
+      { id: findUser.id, role: findUser.role },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    findUser.refreshToken = [...newRefreshTokenArray, newRefreshToken];
+    await findUser.save();
+
+    res.cookie("jwt", newRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ accessToken });
+  } catch (error) {
+    console.error(error);
+    res.sendStatus(500);
+  }
 };
 
 module.exports = { handleRefreshToken };

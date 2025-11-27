@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Register</title>
+  <style>
+    /* (styles copied from your original file) */
+    *{margin:0;padding:0;box-sizing:border-box;font-family:"Poppins",sans-serif}
+    body{background:#f2f4f7;display:flex;justify-content:center;align-items:center;height:100vh;padding:20px}
+    .container{background:#fff;width:350px;padding:30px;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,0.1)}
+    h2{text-align:center;margin-bottom:20px;font-size:26px;color:#333}
+    .input-group{margin-bottom:18px}
+    label{font-weight:600;color:#333;display:block;margin-bottom:5px}
+    input{width:100%;padding:12px;border:1.5px solid #ddd;border-radius:10px;font-size:15px;transition:0.3s}
+    input:focus{border-color:#6b4ce6;outline:none;box-shadow:0 0 5px rgba(107,76,230,0.3)}
+    .password-wrapper{position:relative}
+    .toggle-password{position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:14px;color:#6b4ce6;font-weight:600}
+    button{width:100%;background:#6b4ce6;color:#fff;padding:12px;border:none;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;transition:0.3s;margin-top:5px}
+    button:hover{background:#5939d4}
+    .error{background:#ffebeb;padding:10px;border-radius:8px;color:#e63939;margin-bottom:15px;display:none;font-size:14px}
+    .success{background:#e7fce8;padding:10px;border-radius:8px;color:#2e8b57;margin-top:15px;display:none;font-size:15px;text-align:center}
+    .google-btn{width:100%;background:#fff;color:#444;padding:12px;border:1.5px solid #ddd;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:0.3s;margin-top:15px}
+    .google-btn img{width:22px;height:22px}
+    .google-btn:hover{background:#f5f5f5;border-color:#ccc}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Create Account</h2>
+
+    <div class="error" id="errorBox"></div>
+
+    <div class="input-group">
+      <label>Full Name</label>
+      <input type="text" id="name" placeholder="John Doe" />
+    </div>
+
+    <div class="input-group">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="example@gmail.com" />
+    </div>
+
+    <div class="input-group password-wrapper">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="********" />
+      <span class="toggle-password" onclick="togglePassword()">Show</span>
+    </div>
+
+    <button onclick="registerUser()">Register</button>
+
+    <!-- Google Login Button (uses your route /oauth/google on port 3500) -->
+    <button class="google-btn" onclick="googleLogin()">
+      <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" />
+      Continue with Google
+    </button>
+
+    <div class="success" id="successBox">Registration successful!</div>
+  </div>
+
+  <script>
+    // show/hide password
+    function togglePassword(){
+      const p = document.getElementById("password");
+      const t = document.querySelector(".toggle-password");
+      if(p.type==="password"){p.type="text"; t.textContent="Hide"} else {p.type="password"; t.textContent="Show"}
+    }
+
+    // normal registration (unchanged, sends to your backend)
+    async function registerUser(){
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const errorBox = document.getElementById("errorBox");
+      const successBox = document.getElementById("successBox");
+      errorBox.style.display="none"; successBox.style.display="none";
+
+      if(!name||!email||!password){ errorBox.textContent="All fields are required."; errorBox.style.display="block"; return }
+      if(!email.includes("@")||!email.includes(".")){ errorBox.textContent="Enter a valid email address."; errorBox.style.display="block"; return }
+      if(password.length<6){ errorBox.textContent="Password must be at least 6 characters."; errorBox.style.display="block"; return }
+
+      try{
+        const res = await fetch("http://localhost:3500/api/register",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ name, email, password }),
+          credentials: "include"
+        });
+        const data = await res.json();
+        if(!res.ok){ errorBox.textContent = data.message || "Registration failed."; errorBox.style.display="block"; }
+        else { successBox.textContent="Registration successful!"; successBox.style.display="block"; }
+      } catch(e){
+        errorBox.textContent="Server error. Try again later."; errorBox.style.display="block";
+      }
+    }
+
+    // ------------------------------
+    // Google OAuth popup (uses your /oauth/google)
+    // ------------------------------
+    function googleLogin(){
+      const width = 500, height = 600;
+      const left = (screen.width - width)/2;
+      const top = (screen.height - height)/2;
+
+      // OPEN popup to your backend route
+      const popup = window.open(
+        "http://localhost:3500/oauth/google",
+        `width=${width},height=${height},top=${top},left=${left}`
+      );
+
+      if(!popup){
+        alert("Popup blocked. Allow popups for this site and try again.");
+        return;
+      }
+
+      // Optional: track popup closed without login
+      const checkPopupClosed = setInterval(()=>{
+        if(popup.closed){
+          clearInterval(checkPopupClosed);
+          console.log("OAuth popup closed");
+        }
+      }, 500);
+    }
+
+    // Listen for postMessage from the popup (sent by your backend callback)
+    window.addEventListener("message", (event) => {
+      // SECURITY: you can verify event.origin if you host frontend on a domain
+      if(!event.data) return;
+      const { accessToken, user } = event.data;
+
+      if(!accessToken) return;
+
+      // Save token (or rely on http-only cookie for server auth)
+      try { localStorage.setItem("accessToken", accessToken); } catch(e) { console.warn("Storage failed", e) }
+
+      // Optional: update UI or redirect
+      alert(`Logged in as ${user.username}`);
+      // change to your dashboard/home page path
+      window.location.href = "/"; // or "/dashboard.html"
+    }, false);
+  </script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Select Username</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .container {
+      width: 350px;
+      background: #fff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    p {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 20px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 10px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: #4285F4;
+    }
+
+    .preview {
+      font-size: 14px;
+      color: #444;
+      margin-bottom: 20px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      background: #4285F4;
+      color: white;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: .2s;
+    }
+
+    button:hover {
+      background: #1f6de1;
+    }
+
+    .error {
+      color: red;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+    <h2>Choose Your Username</h2>
+    <p>Welcome! Select a username to complete your account.</p>
+
+    <input id="username" type="text" placeholder="Enter username..." />
+    
+    <div class="preview">Preview: <span id="previewValue">—</span></div>
+
+    <button onclick="submitUsername()">Continue</button>
+
+    <div id="errorMsg" class="error"></div>
+  </div>
+
+  <script>
+    const input = document.getElementById("username");
+    const preview = document.getElementById("previewValue");
+    const errorMsg = document.getElementById("errorMsg");
+
+    // Live preview
+    input.addEventListener("input", () => {
+      preview.textContent = input.value.trim() || "—";
+    });
+
+    // Send username to backend
+    async function submitUsername() {
+      const username = input.value.trim();
+
+      if (!username) {
+        errorMsg.textContent = "Username cannot be empty.";
+        return;
+      }
+
+      errorMsg.textContent = "";
+
+      try {
+        const response = await fetch("/auth/set-username", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          errorMsg.textContent = data.message || "Invalid username";
+          return;
+        }
+
+        // Redirect to dashboard
+        window.location.href = "/dashboard";
+
+      } catch (err) {
+        errorMsg.textContent = "Something went wrong.";
+      }
+    }
+  </script>
+
+</body>
+</html>

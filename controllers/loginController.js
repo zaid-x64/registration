@@ -4,43 +4,39 @@ const jwt = require("jsonwebtoken");
 
 const authenticateUser = async (req, res) => {
   const cookies = req.cookies;
-  console.log(`Cookie  avaliable at login: ${JSON.stringify(cookies)}`);
+  // console.log(`Cookie avaliable at login: ${JSON.stringify(cookies)}`);
 
-  const email = req.body.email?.toLowerCase().trim();
-  const username = req.body.username?.toLowerCase().trim();
-  const pwd = req.body.password;
+  const { email, password } = req.body;
 
-  if (!email && !username)
-    return res.status(400).json({ message: "Email or username is required" });
+  const found = await User.findOne({ email }).exec();
+  console.log(found);
 
-  if (!pwd) return res.status(400).json({ message: "Password is required" });
+  if (!found) return res.status(401).json({ msg: "User not found " });
 
-  const found = await User.findOne({ $or: [{ email }, { username }] }).exec();
+  if (!found.isverified)
+    return res
+      .status(401)
+      .json({ msg: "Please complete the Otp verification fist!" });
 
-  if (!found) return res.status(401).json({ message: "User not found " });
-
-  const match = await bcrypt.compare(pwd, found.password);
+  const match = await bcrypt.compare(password, found.password);
 
   if (match) {
-
     const accessToken = jwt.sign(
-      { username: found.username },
+      { id: findUser.id, role: findUser.role },
       process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "15s" }
+      { expiresIn: "5m" }
     );
 
     const newRefreshToken = jwt.sign(
-      { username: found.username },
+      { id: findUser.id, role: findUser.role },
       process.env.REFRESH_TOKEN_SECRET,
       { expiresIn: "1d" }
     );
 
-    // removing the RT from the DB
     let newRefreshTokenArray = !cookies?.jwt
       ? found.refreshToken
       : found.refreshToken.filter((rt) => rt !== cookies.jwt);
 
-    // RT reuse
     if (cookies?.jwt) {
       const refreshToken = cookies.jwt;
       const foundToken = await User.findOne({ refreshToken }).exec();
@@ -56,12 +52,10 @@ const authenticateUser = async (req, res) => {
       });
     }
 
-    // Saving refreshToken with in DB
     found.refreshToken = [...newRefreshTokenArray, newRefreshToken];
-    const result = await found.save();
-    console.log(result);
+    const saveUser = await found.save();
+    console.log(saveUser);
 
-    // Creates Secure Cookie with refresh token
     res.cookie("jwt", newRefreshToken, {
       httpOnly: true,
       secure: true,
@@ -71,10 +65,9 @@ const authenticateUser = async (req, res) => {
 
     console.log(newRefreshToken);
 
-    // Send access token to user
     res.json({ accessToken });
   } else {
-    res.status(401).json({ message: "Incorrect password" });
+    res.status(401).json({ msg: "Incorrect password" });
   }
 };
 

@@ -1,27 +1,57 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-const userSchema = new Schema({
+const userSchema = new Schema(
+  {
+    googleId: {
+      type: String,
+      unique: true,
+    },
     username: {
-        type: String,
-        required: true,
-        unique: true,
-        trim: true,
-        minlength: 3,
-        maxlength: 30
+      type: String,
+      unique: true,
     },
     email: {
-        type: String,
-        required: true,
-        unique: true,
-        lowercase: true,
+      type: String,
+      required: true,
+      lowercase: true,
+      unique: true,
     },
     password: {
-        type: String,
-        required: true,
-        minlength: 6
+      type: String,
     },
-    refreshToken: [String]
-});
+    avatar: {
+      type: String,
+    },
+    number: {
+      type: String,
+      default: undefined,
+    },
+    otp: {
+      type: Number,
+      default: undefined,
+    },
+    otpExpires: {
+      type: Date,
+      default: undefined,
+    },
+    isverified: {
+      type: Boolean,
+      default: false,
+    },
+    mfa: {
+      type: Boolean,
+      default: false,
+    },
+    refreshToken: [String],
+    role: {
+      type: String,
+      required: true,
+      enum: ["super admin", "admin", "user"],
+      default: "user",
+    },
+  },
+  { timestamps: true }
+);
 
-module.exports = mongoose.model('user', userSchema);
+module.exports = mongoose.model("user", userSchema);
